@@ -1,0 +1,5 @@
+playwright==1.44.0
+playwright-stealth==1.0.6
+openai>=1.0.0
+python-telegram-bot==21.3
+python-dateutil==2.9.0

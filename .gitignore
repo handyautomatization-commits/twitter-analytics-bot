@@ -1,0 +1,8 @@
+# Analytics data — each user's data stays in their own repo
+data/*.json
+data/*.png
+
+# Python
+__pycache__/
+*.py[cod]
+.env
