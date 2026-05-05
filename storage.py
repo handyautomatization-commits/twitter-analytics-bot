@@ -18,6 +18,7 @@ CURRENT_WEEK_FILE = DATA_DIR / "current_week.json"
 PREVIOUS_WEEK_FILE = DATA_DIR / "previous_week.json"
 HALL_OF_FAME_FILE = DATA_DIR / "hall_of_fame.json"
 WEEKLY_ARCHIVE_FILE = DATA_DIR / "weekly_archive.json"
+CONFIG_FILE = DATA_DIR / "config.json"
 
 
 def ensure_data_dir():
@@ -166,6 +167,27 @@ def load_weekly_archive(n: int = 0) -> list[dict]:
     except Exception as e:
         print(f"[Storage] Ошибка чтения weekly_archive.json: {e}")
         return []
+
+
+def load_config() -> dict:
+    """Loads bot config (language, etc.). Returns defaults if file missing."""
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[Storage] Error reading config.json: {e}")
+        return {}
+
+
+def save_config(config: dict):
+    """Saves bot config to data/config.json."""
+    ensure_data_dir()
+    CONFIG_FILE.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"[Storage] Config saved: {config}")
 
 
 def get_meta() -> dict:

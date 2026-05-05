@@ -43,6 +43,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          REPORT_LANGUAGE: ${{ vars.REPORT_LANGUAGE }}
         run: |
           ARGS="--monthly"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then

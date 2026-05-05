@@ -73,6 +73,7 @@ jobs:
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           COOKIES_UPDATED_AT: ${{ env.COOKIES_UPDATED_AT }}
+          REPORT_LANGUAGE: ${{ vars.REPORT_LANGUAGE }}
         run: |
           ARGS=""
           if [ "${{ github.event.inputs.test_mode }}" = "true" ]; then

@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Optional
 
 from scraper import TweetData
+from strings import s, STRINGS
 
 
 # ─── Структуры данных отчёта ────────────────────────────────────────────────
@@ -119,9 +120,9 @@ def get_best_posting_hours(tweets: list[TweetData], top_n: int = 3) -> list[tupl
     return sorted(hour_avgs, key=lambda x: x[1], reverse=True)[:top_n]
 
 
-def get_best_posting_days(tweets: list[TweetData]) -> list[tuple[str, float]]:
-    """Возвращает дни недели по убыванию среднего engagement rate."""
-    day_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+def get_best_posting_days(tweets: list[TweetData], lang: str = "en") -> list[tuple[str, float]]:
+    """Returns weekdays sorted by average engagement rate."""
+    day_names = STRINGS.get(lang, STRINGS["en"])["day_names"]
     day_data: dict[int, list[float]] = defaultdict(list)
 
     for tweet in tweets:
@@ -140,9 +141,9 @@ def get_best_posting_days(tweets: list[TweetData]) -> list[tuple[str, float]]:
 
 
 def compute_delta(current: int | float, previous: int | float) -> str:
-    """Форматирует изменение в виде '+12%' или '-5%'."""
+    """Formats change as '+12%' or '-5%'."""
     if previous == 0:
-        return "новое"
+        return "new"
     delta_pct = (current - previous) / previous * 100
     sign = "+" if delta_pct >= 0 else ""
     return f"{sign}{delta_pct:.0f}%"
@@ -156,6 +157,7 @@ def generate_ai_analysis(
     prev_stats: Optional[WeekStats],
     top_tweets: list[TweetData],
     bottom_tweets: list[TweetData],
+    lang: str = "en",
 ) -> dict:
     """
     Генерирует AI-анализ через DeepSeek API.
@@ -164,7 +166,7 @@ def generate_ai_analysis(
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
 
     if not api_key:
-        return _fallback_analysis_dict(top_tweets, bottom_tweets, stats)
+        return _fallback_analysis_dict(top_tweets, bottom_tweets, stats, lang)
 
     try:
         from openai import OpenAI  # type: ignore
@@ -174,7 +176,7 @@ def generate_ai_analysis(
             base_url="https://api.deepseek.com",
         )
 
-        prompt = _build_prompt(tweets, stats, prev_stats, top_tweets, bottom_tweets)
+        prompt = _build_prompt(tweets, stats, prev_stats, top_tweets, bottom_tweets, lang)
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
@@ -184,10 +186,10 @@ def generate_ai_analysis(
         return _parse_ai_response(raw, len(top_tweets), len(bottom_tweets))
 
     except ImportError:
-        return _fallback_analysis_dict(top_tweets, bottom_tweets, stats)
+        return _fallback_analysis_dict(top_tweets, bottom_tweets, stats, lang)
     except Exception as e:
-        print(f"[Analyzer] Ошибка DeepSeek API: {e}")
-        return _fallback_analysis_dict(top_tweets, bottom_tweets, stats)
+        print(f"[Analyzer] DeepSeek API error: {e}")
+        return _fallback_analysis_dict(top_tweets, bottom_tweets, stats, lang)
 
 
 def _build_prompt(
@@ -196,29 +198,30 @@ def _build_prompt(
     prev_stats: Optional[WeekStats],
     top_tweets: list[TweetData],
     bottom_tweets: list[TweetData],
+    lang: str = "en",
 ) -> str:
-    def fmt(t: TweetData) -> str:
-        return (
-            f"«{t.text[:120]}»\n"
-            f"  {t.likes} лайков, {t.replies} реплаев, {t.impressions} просмотров, ER: {t.engagement_rate:.1f}%"
-        )
-
-    top_lines = "\n".join(f"Твит {i+1}: {fmt(t)}" for i, t in enumerate(top_tweets))
-    bot_lines = "\n".join(f"Твит {i+1}: {fmt(t)}" for i, t in enumerate(bottom_tweets))
-
-    comparison = ""
-    if prev_stats:
-        comparison = (
-            f"Прошлая неделя: {prev_stats.total_impressions:,} просмотров, "
-            f"ER {prev_stats.avg_engagement_rate:.1f}%\n"
-        )
-
     n_top = len(top_tweets)
     n_bot = len(bottom_tweets)
-    top_keys = "\n".join(f"TOP_WHY_{i+1}: [1-2 предложения]" for i in range(n_top))
-    bot_keys = "\n".join(f"BOTTOM_WHY_{i+1}: [1-2 предложения]" for i in range(n_bot))
+    top_keys = "\n".join(f"TOP_WHY_{i+1}: [1-2 sentences]" for i in range(n_top))
+    bot_keys = "\n".join(f"BOTTOM_WHY_{i+1}: [1-2 sentences]" for i in range(n_bot))
 
-    return f"""Ты — аналитик Twitter-контента. Пиши на русском, кратко и конкретно.
+    if lang == "ru":
+        def fmt(t: TweetData) -> str:
+            return (
+                f"«{t.text[:120]}»\n"
+                f"  {t.likes} лайков, {t.replies} реплаев, {t.impressions} просмотров, ER: {t.engagement_rate:.1f}%"
+            )
+        top_lines = "\n".join(f"Твит {i+1}: {fmt(t)}" for i, t in enumerate(top_tweets))
+        bot_lines = "\n".join(f"Твит {i+1}: {fmt(t)}" for i, t in enumerate(bottom_tweets))
+        comparison = ""
+        if prev_stats:
+            comparison = (
+                f"Прошлая неделя: {prev_stats.total_impressions:,} просмотров, "
+                f"ER {prev_stats.avg_engagement_rate:.1f}%\n"
+            )
+        top_keys_ru = "\n".join(f"TOP_WHY_{i+1}: [1-2 предложения]" for i in range(n_top))
+        bot_keys_ru = "\n".join(f"BOTTOM_WHY_{i+1}: [1-2 предложения]" for i in range(n_bot))
+        return f"""Ты — аналитик Twitter-контента. Пиши на русском, кратко и конкретно.
 
 СТАТИСТИКА НЕДЕЛИ:
 Постов: {stats.tweet_count}, Просмотры: {stats.total_impressions:,}, ER: {stats.avg_engagement_rate:.1f}%
@@ -232,9 +235,9 @@ def _build_prompt(
 
 Ответь СТРОГО в следующем формате (не добавляй ничего лишнего):
 
-{top_keys}
+{top_keys_ru}
 
-{bot_keys}
+{bot_keys_ru}
 
 RECOMMENDATIONS:
 1️⃣ Продолжай:
@@ -246,6 +249,49 @@ RECOMMENDATIONS:
 3️⃣ Тайминг: [конкретные часы и дни]
 4️⃣ Формат: [совет по подаче]
 5️⃣ ЭКСПЕРИМЕНТ НА НЕДЕЛЮ: [конкретная идея с темой и форматом]"""
+
+    # English prompt
+    def fmt(t: TweetData) -> str:
+        return (
+            f"«{t.text[:120]}»\n"
+            f"  {t.likes} likes, {t.replies} replies, {t.impressions} impressions, ER: {t.engagement_rate:.1f}%"
+        )
+    top_lines = "\n".join(f"Tweet {i+1}: {fmt(t)}" for i, t in enumerate(top_tweets))
+    bot_lines = "\n".join(f"Tweet {i+1}: {fmt(t)}" for i, t in enumerate(bottom_tweets))
+    comparison = ""
+    if prev_stats:
+        comparison = (
+            f"Last week: {prev_stats.total_impressions:,} impressions, "
+            f"ER {prev_stats.avg_engagement_rate:.1f}%\n"
+        )
+    return f"""You are a Twitter content analyst. Be concise and specific. Reply in English.
+
+WEEKLY STATS:
+Posts: {stats.tweet_count}, Impressions: {stats.total_impressions:,}, ER: {stats.avg_engagement_rate:.1f}%
+Likes: {stats.total_likes:,}, Retweets: {stats.total_retweets:,}, Replies: {stats.total_replies:,}
+{comparison}
+TOP TWEETS:
+{top_lines}
+
+WORST TWEETS:
+{bot_lines}
+
+Reply STRICTLY in this format (nothing else):
+
+{top_keys}
+
+{bot_keys}
+
+RECOMMENDATIONS:
+1️⃣ Keep doing:
+• [point]
+• [point]
+2️⃣ Reconsider:
+• [point]
+• [point]
+3️⃣ Timing: [specific hours and days]
+4️⃣ Format: [content format tip]
+5️⃣ EXPERIMENT THIS WEEK: [specific idea with topic and format]"""
 
 
 def _parse_ai_response(text: str, n_top: int, n_bot: int) -> dict:
@@ -272,17 +318,25 @@ def _fallback_analysis_dict(
     top_tweets: list[TweetData],
     bottom_tweets: list[TweetData],
     stats: WeekStats,
+    lang: str = "en",
 ) -> dict:
-    """Базовый анализ без AI."""
-    top_why = [f"ER {t.engagement_rate:.1f}% — один из лучших результатов недели." for t in top_tweets]
-    bottom_why = [f"ER {t.engagement_rate:.1f}% при {t.impressions} просмотрах — слабый отклик." for t in bottom_tweets]
-
-    recs = "1️⃣ Продолжай: • Публикуй в стиле лучших постов недели\n"
-    if stats.avg_engagement_rate > 3:
-        recs += "2️⃣ Отличный engagement rate — продолжай в том же темпе!\n"
+    """Basic analysis without AI."""
+    if lang == "ru":
+        top_why = [f"ER {t.engagement_rate:.1f}% — один из лучших результатов недели." for t in top_tweets]
+        bottom_why = [f"ER {t.engagement_rate:.1f}% при {t.impressions} просмотрах — слабый отклик." for t in bottom_tweets]
+        recs = "1️⃣ Продолжай: • Публикуй в стиле лучших постов недели\n"
+        recs += ("2️⃣ Отличный engagement rate — продолжай в том же темпе!\n"
+                 if stats.avg_engagement_rate > 3 else
+                 "2️⃣ Пересмотри: • Добавляй вопросы к аудитории для повышения ER\n")
+        recs += "5️⃣ ЭКСПЕРИМЕНТ: Добавь DEEPSEEK_API_KEY для детального AI-анализа."
     else:
-        recs += "2️⃣ Пересмотри: • Добавляй вопросы к аудитории для повышения ER\n"
-    recs += "5️⃣ ЭКСПЕРИМЕНТ: Добавь DEEPSEEK_API_KEY для детального AI-анализа."
+        top_why = [f"ER {t.engagement_rate:.1f}% — one of the best results this week." for t in top_tweets]
+        bottom_why = [f"ER {t.engagement_rate:.1f}% with {t.impressions} impressions — weak response." for t in bottom_tweets]
+        recs = "1️⃣ Keep doing: • Post in the style of your top tweets this week\n"
+        recs += ("2️⃣ Great engagement rate — keep the momentum!\n"
+                 if stats.avg_engagement_rate > 3 else
+                 "2️⃣ Reconsider: • Ask questions to boost engagement\n")
+        recs += "5️⃣ EXPERIMENT: Add DEEPSEEK_API_KEY for detailed AI analysis."
 
     return {"top_why": top_why, "bottom_why": bottom_why, "recommendations": recs}
 
@@ -411,7 +465,7 @@ class MonthlyReport:
     ai_summary: str = ""
 
 
-def build_monthly_report(weeks: list[dict]) -> Optional["MonthlyReport"]:
+def build_monthly_report(weeks: list[dict], lang: str = "en") -> Optional["MonthlyReport"]:
     """
     Собирает ежемесячный отчёт из снимков последних N недель.
     Возвращает None если недель нет.
@@ -432,21 +486,16 @@ def build_monthly_report(weeks: list[dict]) -> Optional["MonthlyReport"]:
     top_tweets = [w["top_tweet"] for w in weeks if w.get("top_tweet")]
     top_tweet = max(top_tweets, key=lambda t: t.get("engagement_rate", 0.0)) if top_tweets else None
 
-    trend = _compute_monthly_trend(weeks)
+    trend = _compute_monthly_trend(weeks, lang)
 
-    # Метки
+    # Month label — translate via strings.py
     now = datetime.now()
-    ru_months = {
-        "January": "Январь", "February": "Февраль", "March": "Март",
-        "April": "Апрель", "May": "Май", "June": "Июнь",
-        "July": "Июль", "August": "Август", "September": "Сентябрь",
-        "October": "Октябрь", "November": "Ноябрь", "December": "Декабрь",
-    }
+    month_map = STRINGS.get(lang, STRINGS["en"])["months"]
     month_label = now.strftime("%B %Y")
-    for en, ru in ru_months.items():
-        month_label = month_label.replace(en, ru)
+    for en_name, local_name in month_map.items():
+        month_label = month_label.replace(en_name, local_name)
 
-    # Период: от начала первой недели до конца последней
+    # Period: from start of first week to end of last week
     first = weeks[0].get("period_label", "")
     last = weeks[-1].get("period_label", "")
     if first and last and "–" in first and "–" in last:
@@ -456,7 +505,7 @@ def build_monthly_report(weeks: list[dict]) -> Optional["MonthlyReport"]:
     else:
         period_label = month_label
 
-    ai_summary = _generate_monthly_ai_summary(weeks, total_tweets, total_impressions, avg_er, trend)
+    ai_summary = _generate_monthly_ai_summary(weeks, total_tweets, total_impressions, avg_er, trend, lang)
 
     return MonthlyReport(
         month_label=month_label,
@@ -474,20 +523,20 @@ def build_monthly_report(weeks: list[dict]) -> Optional["MonthlyReport"]:
     )
 
 
-def _compute_monthly_trend(weeks: list[dict]) -> str:
-    """Сравнивает первую и вторую половины месяца."""
+def _compute_monthly_trend(weeks: list[dict], lang: str = "en") -> str:
+    """Compares first and second halves of the month."""
     if len(weeks) < 2:
-        return "➡️ Недостаточно данных"
+        return s(lang, "trend_no_data")
     half = len(weeks) // 2
     first_er = sum(w["stats"].get("avg_engagement_rate", 0.0) for w in weeks[:half]) / half
     second_er = sum(w["stats"].get("avg_engagement_rate", 0.0) for w in weeks[half:]) / max(len(weeks) - half, 1)
     delta = second_er - first_er
     if delta > 0.5:
-        return "📈 Рост"
+        return s(lang, "trend_up")
     elif delta < -0.5:
-        return "📉 Спад"
+        return s(lang, "trend_down")
     else:
-        return "➡️ Стабильно"
+        return s(lang, "trend_flat")
 
 
 def _generate_monthly_ai_summary(
@@ -496,8 +545,9 @@ def _generate_monthly_ai_summary(
     total_impressions: int,
     avg_er: float,
     trend: str,
+    lang: str = "en",
 ) -> str:
-    """AI-резюме месяца через DeepSeek."""
+    """Monthly AI summary via DeepSeek."""
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     if not api_key:
         return ""
@@ -505,12 +555,13 @@ def _generate_monthly_ai_summary(
         from openai import OpenAI  # type: ignore
         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
-        weeks_lines = "\n".join(
-            f"  {w['period_label']}: {w['stats']['tweet_count']} постов, "
-            f"{w['stats']['total_impressions']:,} просмотров, ER {w['stats']['avg_engagement_rate']:.1f}%"
-            for w in weeks
-        )
-        prompt = f"""Ты — аналитик Twitter-контента. Пиши на русском, кратко и конкретно.
+        if lang == "ru":
+            weeks_lines = "\n".join(
+                f"  {w['period_label']}: {w['stats']['tweet_count']} постов, "
+                f"{w['stats']['total_impressions']:,} просмотров, ER {w['stats']['avg_engagement_rate']:.1f}%"
+                for w in weeks
+            )
+            prompt = f"""Ты — аналитик Twitter-контента. Пиши на русском, кратко и конкретно.
 
 МЕСЯЧНАЯ СВОДКА:
 Постов: {total_tweets}, Просмотры: {total_impressions:,}, Средний ER: {avg_er:.1f}%, Тренд: {trend}
@@ -523,6 +574,25 @@ def _generate_monthly_ai_summary(
 РЕЗЮМЕ: [текст]
 СОВЕТ_1: [текст]
 СОВЕТ_2: [текст]"""
+        else:
+            weeks_lines = "\n".join(
+                f"  {w['period_label']}: {w['stats']['tweet_count']} posts, "
+                f"{w['stats']['total_impressions']:,} impressions, ER {w['stats']['avg_engagement_rate']:.1f}%"
+                for w in weeks
+            )
+            prompt = f"""You are a Twitter content analyst. Be concise and specific. Reply in English.
+
+MONTHLY SUMMARY:
+Posts: {total_tweets}, Impressions: {total_impressions:,}, Avg ER: {avg_er:.1f}%, Trend: {trend}
+
+BY WEEK:
+{weeks_lines}
+
+Write a brief month summary (2-3 sentences) and 2 concrete tips for next month.
+Format:
+SUMMARY: [text]
+TIP_1: [text]
+TIP_2: [text]"""
 
         resp = client.chat.completions.create(
             model="deepseek-chat",
@@ -531,7 +601,7 @@ def _generate_monthly_ai_summary(
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        print(f"[Analyzer] Ошибка AI-анализа месяца: {e}")
+        print(f"[Analyzer] Monthly AI summary error: {e}")
         return ""
 
 
@@ -540,8 +610,9 @@ def _generate_monthly_ai_summary(
 def build_report(
     current_tweets: list[TweetData],
     previous_tweets: list[TweetData],
+    lang: str = "en",
 ) -> WeeklyReport:
-    """Собирает полный еженедельный отчёт."""
+    """Builds the full weekly report."""
     from datetime import datetime, timedelta, timezone
 
     now = datetime.now(timezone.utc)
@@ -555,10 +626,10 @@ def build_report(
     top_tweets = get_top_tweets(current_tweets, 3)
     bottom_tweets = get_bottom_tweets(current_tweets, 3)
     best_hours = get_best_posting_hours(current_tweets, 3)
-    best_days = get_best_posting_days(current_tweets)
+    best_days = get_best_posting_days(current_tweets, lang)
 
-    print("[Analyzer] Запускаю AI-анализ...")
-    ai = generate_ai_analysis(current_tweets, current_stats, previous_stats, top_tweets, bottom_tweets)
+    print("[Analyzer] Running AI analysis...")
+    ai = generate_ai_analysis(current_tweets, current_stats, previous_stats, top_tweets, bottom_tweets, lang)
 
     return WeeklyReport(
         period_label=period_label,
@@ -568,7 +639,7 @@ def build_report(
         bottom_tweets=bottom_tweets,
         best_hours=best_hours,
         best_days=best_days,
-        ai_analysis=ai.get("recommendations", ""),  # fallback
+        ai_analysis=ai.get("recommendations", ""),
         ai_top_why=ai.get("top_why", []),
         ai_bottom_why=ai.get("bottom_why", []),
         ai_recommendations=ai.get("recommendations", ""),
