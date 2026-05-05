@@ -1,7 +1,7 @@
 name: Monthly Twitter Analytics Report
 
 on:
-  # 1-го числа каждого месяца в 09:00 UTC (12:00 по Москве)
+  # 1st of every month at 09:00 UTC (9 AM GMT / 10 AM BST)
   schedule:
     - cron: '0 9 1 * *'
 
