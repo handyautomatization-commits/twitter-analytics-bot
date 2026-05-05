@@ -26,7 +26,7 @@ A free, self-hosted Twitter/X analytics bot that sends you a **weekly Telegram r
 
 ### Step 1 — Fork this repository
 
-Click **Fork** OR **Use this tempalate** in the top right. Keep it public or make it private — your choice.
+Click **Use this template** (or **Fork**) in the top right. Keep it public or make it private — your choice.
 
 ### Step 2 — Export your Twitter cookies
 
@@ -58,6 +58,16 @@ Add these secrets:
 ### Step 5 — Enable GitHub Actions
 
 Go to **Actions** tab in your repo → click **"I understand my workflows, go ahead and enable them"**
+
+### Step 5.5 — Choose your language *(optional)*
+
+Reports default to **English**. To switch to Russian, go to your repo → **Settings** → **Secrets and variables** → **Actions** → **Variables** tab → **New repository variable**:
+
+| Variable name | Value |
+|---|---|
+| `REPORT_LANGUAGE` | `en` or `ru` |
+
+Alternatively, skip this step — on your **first real run** the bot will send a language selection message to Telegram with two buttons (🇬🇧 English / 🇷🇺 Русский). Tap one and your choice is saved automatically.
 
 ### Step 6 — Test it
 
