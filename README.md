@@ -26,7 +26,7 @@ A free, self-hosted Twitter/X analytics bot that sends you a **weekly Telegram r
 
 ### Step 1 — Fork this repository
 
-Click **Fork** in the top right. Keep it public or make it private — your choice.
+Click **Fork** OR **Use this tempalate** in the top right. Keep it public or make it private — your choice.
 
 ### Step 2 — Export your Twitter cookies
 
