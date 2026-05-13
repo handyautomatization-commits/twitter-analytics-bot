@@ -31,8 +31,7 @@ jobs:
     timeout-minutes: 20
 
     permissions:
-      contents: write  # нужно для коммита data/ файлов обратно в репо
-      secrets: read    # нужно для проверки возраста TWITTER_COOKIES
+      contents: write  # needed to commit data/ files back to repo
 
     steps:
       - name: Checkout репозитория
